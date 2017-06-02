@@ -4,54 +4,61 @@
 #include <mem.h>
 #include <limits.h>
 
-typedef struct CAMERA {
+typedef struct _CAMERA {
     int start;
     int end;
-} camera_t;
+} CAMERA, *P_CAMERA;
 
-typedef struct SURVEILLANCE {
+typedef struct _SURVEILLANCE {
     int n;
     int k;
-    camera_t **cameras;
-} surveillance_t;
+    P_CAMERA *cameras;
+} SURVEILLANCE, *P_SURVEILLANCE;
 
-typedef struct SEED {
-    camera_t **cameras;
+typedef struct _SEED {
+    P_CAMERA *cameras;
     int seedSize;
-} seed_t;
+} SEED, *P_SEED;
 
-int inputData(surveillance_t *surveillance);
+int inputData(P_SURVEILLANCE surveillance);
 
-void trimNullPointer(camera_t **list, int *n);
+void trimNullPointer(P_CAMERA *list, int *n);
 
-void removeInnerCamera(camera_t **list, int n);
+void removeInnerCamera(P_CAMERA *list, int n);
 
-bool checkSurveillance(camera_t *camera, int n, int current_wall_num);
+bool checkSurveillance(P_CAMERA camera, int n, int current_wall_num);
 
 int compare(const void *a, const void *b) {
-    return (*(camera_t **) a)->start - (*(camera_t **) b)->start;
+    int diff = (*(CAMERA **) a)->start - (*(CAMERA **) b)->start;
+    if(diff == 0){
+        return (*(CAMERA **) b)->end - (*(CAMERA **) a)->end;
+    }
+    return diff;
 }
 
-int surveillance(surveillance_t *surv, camera_t *camera);
+int surveillance(SURVEILLANCE *surv, CAMERA *camera);
 
-int findSeedCameras(surveillance_t *surv, seed_t *seed);
+int findSeedCameras(SURVEILLANCE *surv, P_SEED seed);
 
 int getWallNumber(int wallNumber, int n);
 
 int main() {
-    surveillance_t surv;
-    memset(&surv, 0, sizeof(surveillance_t));
-
+    SURVEILLANCE surv;
+    surv.cameras = NULL;
+    surv.n = 0;
+    surv.k = 0;
     inputData(&surv);
 
-    seed_t seed;
-    memset(&seed, 0, sizeof(seed_t));
+    SEED seed;
+    seed.cameras = NULL;
+    seed.seedSize = 0;
+
     findSeedCameras(&surv, &seed);
 
     int minCount = INT_MAX;
     for (int i = 0; i < seed.seedSize; i++) {
         int cnt;
-        camera_t *seedCamera = seed.cameras[i];
+        CAMERA *seedCamera = seed.cameras[i];
         cnt = surveillance(&surv, seedCamera);
         if (minCount > cnt) {
             minCount = cnt;
@@ -64,19 +71,31 @@ int main() {
         printf("%d\n", minCount);
     }
 
-    free(seed.cameras);
-    for(int i = 0; i < surv.k; i++){
-        free(surv.cameras[i]);
+    if(seed.cameras != NULL) {
+        free(seed.cameras);
+        seed.cameras = NULL;
     }
-    free(surv.cameras);
+    for(int i = 0; i < surv.k; i++) {
+        if (surv.cameras[i] != NULL) {
+            free(surv.cameras[i]);
+            surv.cameras[i] = NULL;
+        }
+    }
+    if(surv.cameras != NULL) {
+        free(surv.cameras);
+        surv.cameras = NULL;
+    }
     return 0;
 }
 
-int surveillance(surveillance_t *surv, camera_t *seed) {
+int surveillance(P_SURVEILLANCE surv, P_CAMERA seed) {
     int seedIndex = 0;
     int start, end;
     start = getWallNumber(seed->end + 1, surv->n);
     end = getWallNumber(seed->start - 1, surv->n);
+    if(checkSurveillance(seed, surv->n, end)){
+        return 1;
+    }
     for (int i = 0; i < surv->k; i++) {
         if (seed == surv->cameras[i]) {
             seedIndex = i;
@@ -84,14 +103,13 @@ int surveillance(surveillance_t *surv, camera_t *seed) {
         }
     }
     int running_flag = 1;
-    int cnt = 1; //contain cameras camera
+    int cnt = 1; //contain init camera
     while (running_flag) {
         int searchIndex;
         searchIndex = -1;
         for (int i = 0; i < surv->k; i++) {
             int index;
             index = (i + seedIndex + 1) % surv->k;
-
             if (checkSurveillance(surv->cameras[index], surv->n, start)) {
                 searchIndex = index;
             } else {
@@ -99,7 +117,7 @@ int surveillance(surveillance_t *surv, camera_t *seed) {
             }
         }
         if (searchIndex != -1) {
-            camera_t *searchCamera = surv->cameras[searchIndex];
+            CAMERA *searchCamera = surv->cameras[searchIndex];
             if (checkSurveillance(searchCamera, surv->n, end)) {
                 running_flag = 0;
             }
@@ -122,7 +140,7 @@ int getWallNumber(int wallNumber, int n) {
     return wallNumber;
 }
 
-bool checkSurveillance(camera_t *camera, int n, int current_wall_num) {
+bool checkSurveillance(P_CAMERA camera, int n, int current_wall_num) {
     if (camera->start <= camera->end) {
         return (camera->start <= current_wall_num && current_wall_num <= camera->end) ? true : false;
     } else {
@@ -131,24 +149,22 @@ bool checkSurveillance(camera_t *camera, int n, int current_wall_num) {
     }
 }
 
-int inputData(surveillance_t *s) {
+int inputData(P_SURVEILLANCE s) {
 
     int n, k, max_end = 0, min_start = INT_MAX;
-    camera_t **group_a = NULL, **group_b = NULL;
+    P_CAMERA *group_a = NULL, *group_b = NULL;
     int size_a = 0, size_b = 0;
-    //surveillance-23-start-with-wrap-3
-    //surveillance-25b-walter
 
     scanf("%d %d", &n, &k);
 
-    group_a = malloc(sizeof(camera_t *) * k);
-    memset(group_a, 0, sizeof(camera_t *) * k);
-    group_b = malloc(sizeof(camera_t *) * k);
-    memset(group_b, 0, sizeof(camera_t *) * k);
+    group_a = malloc(sizeof(P_CAMERA) * k);
+    memset(group_a, 0, sizeof(P_CAMERA) * k);
+    group_b = malloc(sizeof(P_CAMERA) * k);
+    memset(group_b, 0, sizeof(P_CAMERA) * k);
 
     for (int i = 0; i < k; i++) {
-        camera_t *camera;
-        camera = malloc(sizeof(camera_t));
+        P_CAMERA camera;
+        camera = malloc(sizeof(CAMERA));
         scanf("%d %d", &(camera->start), &(camera->end));
         if (camera->start <= camera->end) {
             group_a[size_a] = camera;
@@ -163,7 +179,7 @@ int inputData(surveillance_t *s) {
 
     if (size_b > 0) {
         for (int i = 0; i < size_a; i++) {
-            camera_t *camera = *(group_a + i);
+            CAMERA *camera = *(group_a + i);
             if (camera->start > min_start) {
                 free(camera);
                 *(group_a + i) = NULL;
@@ -176,13 +192,13 @@ int inputData(surveillance_t *s) {
     }
 
     if (size_a > 0) {
-        qsort(group_a, (size_t) size_a, sizeof(camera_t *), compare);
+        qsort(group_a, (size_t) size_a, sizeof(CAMERA *), compare);
         removeInnerCamera(group_a, size_a);
         trimNullPointer(group_a, &size_a);
     }
 
     if (size_b > 0) {
-        qsort(group_b, (size_t) size_b, sizeof(camera_t *), compare);
+        qsort(group_b, (size_t) size_b, sizeof(CAMERA *), compare);
         removeInnerCamera(group_b, size_b);
         trimNullPointer(group_b, &size_b);
     }
@@ -196,7 +212,7 @@ int inputData(surveillance_t *s) {
 
     s->n = n;
     s->k = size_a;
-    s->cameras = malloc(sizeof(camera_t *) * size_a);
+    s->cameras = malloc(sizeof(CAMERA *) * size_a);
     for (int i = 0; i < size_a; i++) {
         s->cameras[i] = group_a[i];
     }
@@ -205,7 +221,7 @@ int inputData(surveillance_t *s) {
     return 0;
 }
 
-int findSeedCameras(surveillance_t *surv, seed_t *seed) {
+int findSeedCameras(P_SURVEILLANCE surv, P_SEED seed) {
     int min = INT_MAX;
     int minWallNumber = 0;
 
@@ -234,7 +250,7 @@ int findSeedCameras(surveillance_t *surv, seed_t *seed) {
             seed->seedSize++;
         }
     }
-    seed->cameras = malloc(sizeof(camera_t *) * seed->seedSize);
+    seed->cameras = malloc(sizeof(P_CAMERA) * seed->seedSize);
     int index = 0;
     for (int i = 0; i < surv->k; i++) {
         if (checkSurveillance(surv->cameras[i], surv->n, minWallNumber)) {
@@ -244,6 +260,7 @@ int findSeedCameras(surveillance_t *surv, seed_t *seed) {
     }
     if (seed->seedSize == 0) {
         free(seed->cameras);
+        seed->cameras = NULL;
     }
 
     free(camera_count);
@@ -251,19 +268,22 @@ int findSeedCameras(surveillance_t *surv, seed_t *seed) {
 
 }
 
-void removeInnerCamera(camera_t **list, int n) {//remove unnecessary camera.
+void removeInnerCamera(P_CAMERA *list, int n) {//remove unnecessary camera.
     if (n <= 0) {
         return;
     }
-    for (int i = n - 1; i >= 1; i--) {
-        if (list[i]->end <= list[i - 1]->end) {
+    int temp = list[0]->end;
+    for (int i = 1; i < n; i++) {
+        if (temp >= list[i]->end) {
             free(list[i]);
             list[i] = NULL;
+        }else{
+            temp = list[i]->end;
         }
     }
 }
 
-void trimNullPointer(camera_t **list, int *n) {
+void trimNullPointer(P_CAMERA *list, int *n) {
     int i = 0, offset = 0;
     while (i + offset < *n) {
         if (list[i + offset] == NULL) {

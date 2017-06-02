@@ -5,3 +5,4 @@ set(CMAKE_C_STANDARD 99)
 
 set(SOURCE_FILES main.c)
 add_executable(surveillance ${SOURCE_FILES})
+add_executable(helloworld proto.c)
